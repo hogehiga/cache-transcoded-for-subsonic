@@ -8,8 +8,12 @@ require 'logger'
 require 'json'
 
 # CONSTS(You can change them)
+
+# cache files placed CACHE_DIR. This directory structued like Maildir.
+# First, ranscoding files creates in CACHE_DIR/tmp.
+# Second, if transcoding finished, rename it to CACHE_DIR/new(so, you must place these at same filesystem)
+# Note that CACHE_DIR/cur does not exist because it is not needed that recording transcoded files is delivered.
 CACHE_DIR = "/var/subsonic/cache"
-TRANSCODE_STATUS_FILE = "#{CACHE_DIR}/transcode-status.json"
 LOG_FILE = "#{CACHE_DIR}/transcode.log"
 FFMPEG = "/var/subsonic/transcode/ffmpeg"
 
@@ -21,9 +25,6 @@ STATUS_FINISHED = "finished"
 FileUtils.makedirs(CACHE_DIR)
 logger = Logger.new(LOG_FILE)
 logger.info 'start'
-transcode_status_file = Pathname.new(TRANSCODE_STATUS_FILE)
-transcode_status_file.write(JSON.dump({})) unless transcode_status_file.exist?
-transcode_status = JSON.parse(Pathname.new(TRANSCODE_STATUS_FILE).read)
 
 # Parse command line
 cmdline = ARGV
@@ -31,33 +32,41 @@ i = cmdline[cmdline.index('-i') + 1]
 b_a = cmdline[cmdline.index('-b:a') + 1]
 f = cmdline[cmdline.index('-f') + 1]
 
-cache_file = Pathname.new("#{CACHE_DIR}/#{b_a}#{Pathname.new(i).parent}/#{Pathname.new(i).basename(".*")}.#{f}")
+cache_file_tmp = Pathname.new("#{CACHE_DIR}/tmp/#{b_a}#{Pathname.new(i).parent}/#{Pathname.new(i).basename(".*")}.#{f}.#{SecureRandom.uuid}")
+cache_file_new = Pathname.new("#{CACHE_DIR}/new/#{b_a}#{Pathname.new(i).parent}/#{Pathname.new(i).basename(".*")}.#{f}")
 
-if transcode_status[cache_file.to_s] != STATUS_FINISHED
+# Clean tmp file if Recieve specific signals.
+trap(:INT) do
+  cache_file_tmp.delete
+end
+trap(:TERM) do
+  cache_file_tmp.delete
+end
+
+# Main
+if cache_file_new.exist?
+  STDOUT.binmode
+  STDOUT.write(cache_file_new.read)
+else
   cmdline[cmdline.index('-i') + 1] = Shellwords.shellescape(i)
   call = "#{FFMPEG} #{cmdline.join(' ')}"
   logger.info "call: #{call}"
-  FileUtils.makedirs(cache_file.parent)
-  cache_file.open('w').close    # touch
+  FileUtils.makedirs(cache_file_tmp.parent)
+  cache_file_tmp.open('w').close    # touch
   Open3.popen3(call) do |stdin, stdout, stderr, wait_thr|
-    transcode_status[cache_file.to_s] = STATUS_STARTED
-    transcode_status_file.write(JSON.dump(transcode_status))
     stdin.close
     STDOUT.binmode
-    out = cache_file.open('w')
+    out = cache_file_tmp.open('w')
     while (r = stdout.read(4096))
       out.write(r)
       STDOUT.write(r)
     end
-    transcode_status[cache_file.to_s] = STATUS_FINISHED
-    transcode_status_file.write(JSON.dump(transcode_status))
+    FileUtils.makedirs(cache_file_new.parent)
+    File.rename(cache_file_tmp, cache_file_new)
     logger.info "finished"
     e = stderr.read
     logger.warn "stderr: #{e}" unless e.empty?
   end
-else
-  STDOUT.binmode
-  STDOUT.write(cache_file.read)
 end
-logger.info "cache_file: #{cache_file}"
-logger.info "cache_file stat: #{cache_file.stat.inspect}"
+logger.info "cache_file_new: #{cache_file_new}"
+logger.info "cache_file_new stat: #{cache_file_new.stat.inspect}"
