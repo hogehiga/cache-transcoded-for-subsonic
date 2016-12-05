@@ -1,11 +1,10 @@
 #!/usr/bin/ruby2.1
-require 'optparse'
 require 'pathname'
 require 'shellwords'
 require 'open3'
 require 'fileutils'
 require 'logger'
-require 'json'
+require 'securerandom'
 
 # CONSTS(You can change them)
 
