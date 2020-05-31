@@ -8,15 +8,17 @@ require 'securerandom'
 
 # CONSTS(You can change them)
 
-# cache files placed CACHE_DIR. This directory structued like Maildir.
-# First, ranscoding files creates in CACHE_DIR/tmp.
-# Second, if transcoding finished, rename it to CACHE_DIR/new(so, you must place these at same filesystem)
+# Cache files placed CACHE_DIR. This directory will be structued like Maildir.
+# First, a file being transcoded will be created in CACHE_DIR/tmp.
+# Second, if transcoding finished, rename it to CACHE_DIR/new(Note that they must be on the same filesystem for atomic rename operation).
 # Note that CACHE_DIR/cur does not exist because it is not needed that recording transcoded files is delivered.
 CACHE_DIR = "/var/subsonic/cache"
 LOG_FILE = "#{CACHE_DIR}/transcode.log"
 FFMPEG = "/var/subsonic/transcode/ffmpeg"
 
-# CONSTS
+
+################################################################################
+# CONSTS(DO NOT CHANGE)
 STATUS_STARTED = "started"
 STATUS_FINISHED = "finished"
 
